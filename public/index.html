@@ -197,7 +197,7 @@
                 const image = profileArt?.attributes?.url;
                 
                 const releasesData = await fetchData(`/api/artist/${id}/releases`);
-                const releases = releasesData.success ? releasesData.data.included : [];
+                const releases = releasesData.success ? releasesData.data.data : [];
                 
                 let releasesHtml = '';
                 if (releases.length > 0) {
@@ -205,11 +205,11 @@
                         <h2 style="margin-top: 25px;">📀 Recent Releases</h2>
                         <div style="margin-top: 15px;">`;
                     releases.forEach(release => {
-                        const releaseName = release.attributes.name || 'Untitled';
+                        const releaseName = release.attributes.title || 'Untitled';
                         const releaseYear = release.attributes.releaseDate?.split('-')[0] || 'Unknown';
-                        const imgUrl = release.attributes.image?.data?.attributes?.url || artist.attributes.image?.data?.attributes?.url || '/placeholder.jpg';
+                        const imgUrl = artist.attributes.image?.data?.attributes?.url || '/placeholder.jpg';
                         releasesHtml += `
-                            <div class="release" onclick="showArtistDetails('${artist.id}')">
+                            <div class="release" onclick="showArtistDetails(parseInt('${artist.id}'))">
                                 <div class="release-title">${releaseName}</div>
                                 <div class="release-year">${releaseYear}</div>
                             </div>

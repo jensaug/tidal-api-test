@@ -66,6 +66,16 @@ class TidalClient {
         }
     }
 
+    async getAlbumInfo(albumId) {
+        try {
+            const response = await this.client.get(`/albums/${albumId}`);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching album info:', error.response ? error.response.data : error.message);
+            throw error;
+        }
+    }
+
     async getPlaylistItems(playlistId, limit = 100) {
         try {
             const response = await this.client.get(`/userCollections/${playlistId}/relationships/items?include=items&limit=${limit}`);
@@ -78,8 +88,41 @@ class TidalClient {
 
     async getArtistReleases(artistId, limit = 3) {
         try {
-            const response = await this.client.get(`/artists/${artistId}/relationships/releases?include=releases&limit=${limit}`);
-            return response.data;
+            // First fetch artist info to get ID
+            const artistInfo = await this.getArtistInfo(artistId);
+            const artistIdStr = artistInfo.data?.id;
+            
+            if (!artistIdStr) {
+                throw new Error('Could not get artist ID');
+            }
+            
+            // Get album IDs
+            const albumsResponse = await this.client.get(`/artists/${artistIdStr}/relationships/albums?limit=${limit}`);
+            const albumIds = albumsResponse.data.data.map(album => album.id);
+            
+            // Fetch full details for each album with rate limiting
+            const releases = [];
+            for (const albumId of albumIds) {
+                try {
+                    const albumInfo = await this.getAlbumInfo(albumId);
+                    if (albumInfo.data) {
+                        releases.push({
+                            id: albumInfo.data.id,
+                            type: albumInfo.data.type,
+                            attributes: albumInfo.data.attributes,
+                            relationships: albumInfo.data.relationships
+                        });
+                    }
+                } catch (e) {
+                    if (e.response?.status === 429) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+            
+            return { data: releases };
         } catch (error) {
             console.error('Error fetching artist releases:', error.response ? error.response.data : error.message);
             throw error;

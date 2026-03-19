@@ -91,8 +91,17 @@ async function fetchArtistStats(artistId) {
             }
         }
         
-        console.log('\nNote: The Tidal OpenAPI V2 endpoints for listening history and popularity are not yet available.');
-        console.log('Please check Tidal API documentation for available artist statistics endpoints.');
+        console.log('\n--- Fetching Recent Releases ---');
+        const releases = await client.getArtistReleases(artistId, 3);
+        if (releases && releases.data) {
+            console.log('\nRecent Releases:');
+            releases.data.forEach(release => {
+                const title = release.attributes?.title || 'Unknown';
+                const releaseDate = release.attributes?.releaseDate;
+                const year = releaseDate ? new Date(releaseDate).getFullYear() : 'N/A';
+                console.log(`- ${title} (${year})`);
+            });
+        }
     } catch (error) {
         console.error('Error fetching artist statistics:');
         console.error(error.message);
