@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidal API GUI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 30px; color: #00d4ff; }
+        h2 { margin: 20px 0 15px; color: #00d4ff; border-bottom: 2px solid #00d4ff; padding-bottom: 10px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { padding: 12px 24px; background: #16213e; border: none; color: #eee; cursor: pointer; border-radius: 8px; font-size: 16px; transition: all 0.3s; }
+        .tab:hover { background: #0f3460; }
+        .tab.active { background: #00d4ff; color: #1a1a2e; font-weight: bold; }
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { background: #16213e; border-radius: 12px; padding: 20px; margin: 15px 0; }
+        .card-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .card-header img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
+        .card-header h3 { font-size: 18px; }
+        .card-header p { color: #888; font-size: 14px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .item { background: #1a1a2e; border-radius: 12px; padding: 15px; cursor: pointer; transition: transform 0.2s; }
+        .item:hover { transform: translateY(-5px); background: #0f3460; }
+        .item img { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
+        .item h4 { font-size: 16px; margin-bottom: 5px; }
+        .item p { font-size: 12px; color: #888; }
+        .search { width: 100%; padding: 12px 16px; background: #16213e; border: 2px solid #0f3460; color: #eee; border-radius: 8px; font-size: 16px; margin-bottom: 20px; }
+        .search:focus { outline: none; border-color: #00d4ff; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; }
+        .stat { background: #0f3460; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #00d4ff; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 5px; }
+        .loading { text-align: center; padding: 40px; color: #888; }
+        .error { background: #ff4444; color: white; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .link { color: #00d4ff; text-decoration: none; }
+        .link:hover { text-decoration: underline; }
+        .releases { margin-top: 20px; }
+        .release { background: #0f3460; padding: 15px; border-radius: 8px; margin-top: 10px; cursor: pointer; transition: transform 0.2s; }
+        .release:hover { transform: translateY(-3px); }
+        .release-title { font-size: 16px; font-weight: bold; color: #00d4ff; margin-bottom: 5px; }
+        .release-year { font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Tidal API GUI</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('artists')">📚 Library Artists</button>
+            <button class="tab" onclick="showTab('playlists')">🎵 Playlists</button>
+            <button class="tab" onclick="showTab('search')">🔍 Search Artists</button>
+        </div>
+
+        <div id="artists" class="section active">
+            <input type="text" class="search" id="artistSearch" placeholder="🔍 Search artists..." oninput="searchArtists()">
+            <div id="artistsGrid" class="grid"></div>
+        </div>
+
+        <div id="playlists" class="section">
+            <div id="playlistsGrid" class="grid"></div>
+        </div>
+
+        <div id="search" class="section">
+            <input type="text" class="search" id="searchQuery" placeholder="🔍 Search any artist..." oninput="searchArtists()">
+            <div id="searchResults" class="grid"></div>
+        </div>
+
+        <div id="playlistDetails" class="card" style="display: none;"></div>
+        <div id="artistDetails" class="card" style="display: none;"></div>
+    </div>
+
+    <script>
+        let artists = [];
+        let playlists = [];
+
+        async function fetchData(endpoint) {
+            const res = await fetch(endpoint);
+            return res.json();
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (tabId === 'artists') loadArtists();
+            if (tabId === 'playlists') loadPlaylists();
+        }
+
+        async function loadArtists() {
+            const data = await fetchData('/api/artists');
+            if (data.success) {
+                artists = data.data;
+                renderArtists(artists);
+            } else {
+                showError(data.error);
+            }
+        }
+
+        async function loadPlaylists() {
+            const data = await fetchData('/api/playlists');
+            if (data.success) {
+                playlists = data.data;
+                renderPlaylists(playlists);
+            } else {
+                showError(data.error);
+            }
+        }
+
+        function renderArtists(artists) {
+            const grid = document.getElementById('artistsGrid');
+            grid.innerHTML = artists.map(artist => `
+                <div class="item" onclick="showArtistDetails('${artist.id}')">
+                    <img src="${artist.attributes.profileArt?.data?.attributes?.url || '/placeholder.jpg'}" alt="${artist.attributes.name}">
+                    <h4>${artist.attributes.name}</h4>
+                    <p>ID: ${artist.id}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderPlaylists(playlists) {
+            const grid = document.getElementById('playlistsGrid');
+            grid.innerHTML = playlists.map(p => `
+                <div class="item" onclick="showPlaylistDetails('${p.id}')">
+                    <img src="${p.attributes.image?.data?.attributes?.url || '/placeholder.jpg'}" alt="${p.attributes.name}">
+                    <h4>${p.attributes.name}</h4>
+                    <p>ID: ${p.id}</p>
+                </div>
+            `).join('');
+        }
+
+        async function showPlaylistDetails(playlistId) {
+            const data = await fetchData(`/api/playlist/${playlistId}/items`);
+            if (data.success) {
+                const playlist = data.data.data;
+                const playlistImage = data.data.included?.find(i => i.type === 'image')?.attributes?.url;
+                const items = data.data.relationships?.items?.data || [];
+                
+                const artistsMap = new Map();
+                items.forEach(item => {
+                    const artistId = item.attributes.artwork?.data?.id;
+                    if (artistId && !artistsMap.has(artistId)) {
+                        artistsMap.set(artistId, item.attributes.artwork?.data);
+                    }
+                });
+                
+                const artists = Array.from(artistsMap.values());
+                
+                let artistsHtml = '';
+                if (artists.length > 0) {
+                    artistsHtml = `<h2 style="margin-top: 25px;">👥 Artists in this playlist (${artists.length})</h2>
+                        <div class="grid" style="margin-top: 15px;">`;
+                    artists.forEach(artist => {
+                        const imgUrl = artist.attributes.url || artist.attributes.profileArt?.data?.attributes?.url || '/placeholder.jpg';
+                        artistsHtml += `
+                            <div class="item" onclick="showArtistDetails('${artist.id}')">
+                                <img src="${imgUrl}" alt="${artist.attributes.name}">
+                                <h4>${artist.attributes.name}</h4>
+                                <p>ID: ${artist.id}</p>
+                            </div>
+                        `;
+                    });
+                    artistsHtml += `</div>`;
+                } else {
+                    artistsHtml = '<p style="color: #888; text-align: center; padding: 20px;">No artists found in this playlist</p>';
+                }
+                
+                document.getElementById('playlistDetails').style.display = 'block';
+                document.getElementById('playlistDetails').innerHTML = `
+                    <div class="card-header">
+                        <img src="${playlistImage || '/placeholder.jpg'}" alt="${playlist.attributes.name}">
+                        <div>
+                            <h3>${playlist.attributes.name}</h3>
+                            <p>ID: ${playlist.id}</p>
+                        </div>
+                    </div>
+                    <p>Total items: ${items.length}</p>
+                    ${artistsHtml}
+                `;
+                document.getElementById('playlistDetails').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                document.getElementById('playlistDetails').innerHTML = `<div class="error">${data.error}</div>`;
+                document.getElementById('playlistDetails').style.display = 'block';
+            }
+        }
+
+        async function showArtistDetails(id) {
+            const data = await fetchData(`/api/artist/${id}`);
+            if (data.success) {
+                const artist = data.data.data;
+                const profileArt = data.data.included?.find(i => i.type === 'profileArt');
+                const image = profileArt?.attributes?.url;
+                
+                const releasesData = await fetchData(`/api/artist/${id}/releases`);
+                const releases = releasesData.success ? releasesData.data.included : [];
+                
+                let releasesHtml = '';
+                if (releases.length > 0) {
+                    releasesHtml = `<div class="releases">
+                        <h2 style="margin-top: 25px;">📀 Recent Releases</h2>
+                        <div style="margin-top: 15px;">`;
+                    releases.forEach(release => {
+                        const releaseName = release.attributes.name || 'Untitled';
+                        const releaseYear = release.attributes.releaseDate?.split('-')[0] || 'Unknown';
+                        const imgUrl = release.attributes.image?.data?.attributes?.url || artist.attributes.image?.data?.attributes?.url || '/placeholder.jpg';
+                        releasesHtml += `
+                            <div class="release" onclick="showArtistDetails('${artist.id}')">
+                                <div class="release-title">${releaseName}</div>
+                                <div class="release-year">${releaseYear}</div>
+                            </div>
+                        `;
+                    });
+                    releasesHtml += `</div></div>`;
+                }
+                
+                document.getElementById('artistDetails').style.display = 'block';
+                document.getElementById('artistDetails').innerHTML = `
+                    <div class="card-header">
+                        <img src="${image || '/placeholder.jpg'}" alt="${artist.attributes.name}">
+                        <div>
+                            <h3>${artist.attributes.name}</h3>
+                            <p>ID: ${artist.id}</p>
+                        </div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-value">${(artist.attributes.popularity * 100).toFixed(1)}%</div>
+                            <div class="stat-label">Popularity</div>
+                        </div>
+                    </div>
+                    ${artist.attributes.externalLinks?.map(link => `
+                        <div style="margin-top: 15px;">
+                            <a href="${link.href}" class="link" target="_blank">🔗 ${link.meta?.type}</a>
+                        </div>
+                    `).join('')}
+                    ${releasesHtml}
+                `;
+                document.getElementById('artistDetails').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        async function searchArtists() {
+            const query = document.getElementById('searchQuery').value;
+            if (!query.trim()) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+            const data = await fetchData(`/api/artist/${query}`);
+            if (data.success) {
+                const artist = data.data.data;
+                const profileArt = data.data.included?.find(i => i.type === 'profileArt');
+                const image = profileArt?.attributes?.url;
+                
+                document.getElementById('searchResults').innerHTML = `
+                    <div class="item">
+                        <img src="${image || '/placeholder.jpg'}" alt="${artist.attributes.name}">
+                        <h4>${artist.attributes.name}</h4>
+                        <p>ID: ${artist.id}</p>
+                        <div class="stats">
+                            <div class="stat">
+                                <div class="stat-value">${(artist.attributes.popularity * 100).toFixed(1)}%</div>
+                                <div class="stat-label">Popularity</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                document.getElementById('searchResults').innerHTML = `<div class="error">${data.error}</div>`;
+            }
+        }
+
+        function showError(message) {
+            const grid = document.getElementById('artistsGrid') || document.getElementById('playlistsGrid');
+            grid.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        loadArtists();
+        loadPlaylists();
+    </script>
+</body>
+</html>
